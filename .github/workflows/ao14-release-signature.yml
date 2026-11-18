@@ -1,0 +1,92 @@
+name: AO14 public-digest RELEASE signer — PROPOSED (not deployed)
+on:
+  workflow_dispatch:
+    inputs:
+      approval_sha256:
+        description: SHA-256 of exact canonical private approval receipt (digest only)
+        required: true
+        type: string
+      archive_sha256:
+        description: SHA-256 of immutable release candidate ZIP (digest only)
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: ao14-release-exclusive
+  cancel-in-progress: false
+jobs:
+  release-signature:
+    if: ${{ github.ref == 'refs/heads/main' && github.event.repository.private == false }}
+    runs-on: ubuntu-latest
+    environment: ao14-release-reviewed
+    timeout-minutes: 5
+    steps:
+      - name: Sign reviewed SHA digests — never mint native grant
+        shell: bash
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_ACTIONS: 'true'
+          AO14_RELEASE_REPO: ${{ vars.AO14_RELEASE_REPO }}
+          AO14_RELEASE_PUBLIC_FINGERPRINT_SHA256: ${{ vars.AO14_RELEASE_PUBLIC_FINGERPRINT_SHA256 }}
+          AO14_RELEASE_PRIVATE_PKCS8_DER_B64: ${{ secrets.AO14_RELEASE_PRIVATE_PKCS8_DER_B64 }}
+          AO14_APPROVAL_SHA256: ${{ inputs.approval_sha256 }}
+          AO14_ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+        run: |
+          set -euo pipefail
+          node <<'AO14_SIGNER_JS'
+          'use strict';
+          // AO14 R171: PROPOSAL ONLY. Does not grant any L4 scope or deploy anything.
+          const crypto = require('node:crypto');
+          const HEX = /^[0-9a-f]{64}$/;
+          const DOMAIN = 'AIOS.AO14.R171.RELEASE.DIGESTS.V1\0';
+          function fail(reason) { throw new Error('HOLD_' + reason); }
+          function messageFor(approval, archive) {
+            if (typeof approval !== 'string' || !HEX.test(approval)) fail('APPROVAL_SHA256_INVALID');
+            if (typeof archive !== 'string' || !HEX.test(archive)) fail('ARCHIVE_SHA256_INVALID');
+            return Buffer.from(DOMAIN + approval + '\n' + archive + '\n','utf8');
+          }
+          function takeSecret() {
+            const secret = process.env.AO14_RELEASE_PRIVATE_PKCS8_DER_B64;
+            if (!secret || typeof secret !== 'string' || secret.length > 12000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(secret)) {
+              fail('ENV_SECRET_NOT_PROVISIONED');
+            }
+            const keyDer = Buffer.from(secret,'base64');
+            try {
+              if (keyDer.length < 40 || keyDer.length > 8000) fail('KEY_LENGTH_INVALID');
+              const privateKey = crypto.createPrivateKey({key:keyDer,format:'der',type:'pkcs8'});
+              if (privateKey.asymmetricKeyType !== 'ed25519') fail('RELEASE_ED25519_REQUIRED');
+              return privateKey;
+            } finally { keyDer.fill(0); }
+          }
+          function sign(approval, archive, privateKey, expectedFingerprint) {
+            const msg = messageFor(approval,archive);
+            if (typeof expectedFingerprint !== 'string' || !HEX.test(expectedFingerprint)) fail('TRUST_FINGERPRINT_UNSET');
+            const pub = crypto.createPublicKey(privateKey);
+            const raw = pub.export({format:'der',type:'spki'});
+            const prefix = Buffer.from('302a300506032b6570032100','hex');
+            if (raw.length !== 44 || !raw.subarray(0,12).equals(prefix)) fail('PUBLIC_KEY_SHAPE');
+            const fp = crypto.createHash('sha256').update(raw.subarray(12)).digest('hex');
+            if (fp !== expectedFingerprint) fail('KEY_TRUST_MISMATCH');
+            const signature = crypto.sign(null,msg,privateKey);
+            if (signature.length !== 64 || !crypto.verify(null,msg,pub,signature)) fail('SIGNATURE_SELF_CHECK_FAILED');
+            return {schema:'aios.ao14.r171.release-digest-signature.v1',approval_sha256:approval,
+              archive_sha256:archive,domain:'AIOS.AO14.R171.RELEASE.DIGESTS.V1',
+              release_public_fingerprint_sha256:fp,signature_b64:signature.toString('base64'),
+              grant_created:false,lease_acquired:false,production_modified:false,
+              note:'PUBLIC_DIGEST_SIGNATURE_ONLY__NOT_A_NATIVE_L4_GRANT'};
+          }
+          function cli() {
+            if (process.env.GITHUB_ACTIONS !== 'true' || process.env.GITHUB_REF !== 'refs/heads/main')
+              fail('ONLY_REVIEWED_GITHUB_MAIN_RUN');
+            const intended = process.env.AO14_RELEASE_REPO;
+            if (!intended || process.env.GITHUB_REPOSITORY !== intended) fail('REPOSITORY_NOT_PINNED');
+            const result = sign(process.env.AO14_APPROVAL_SHA256,process.env.AO14_ARCHIVE_SHA256,
+              takeSecret(),process.env.AO14_RELEASE_PUBLIC_FINGERPRINT_SHA256);
+            process.stdout.write(JSON.stringify(result)+'\n');
+          }
+          if (require.main === module) {
+            try { cli(); } catch(e) { console.error(String(e.message).startsWith('HOLD_') ? e.message : 'HOLD_SIGNER_FAILURE'); process.exitCode=73; }
+          }
+          module.exports = {DOMAIN,messageFor,sign};
+          AO14_SIGNER_JS
