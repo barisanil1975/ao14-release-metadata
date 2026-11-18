@@ -1,0 +1,14 @@
+{
+  "original_approved_r171_zip_sha256": "a297f747ed69f582c21f018cfc09d82360904edec346c91e1a265fb111a6cc71",
+  "production_grant_or_lease": false,
+  "public_repo_name_suggested": "ao14-release-metadata",
+  "real_key_included": false,
+  "schema": "aios.ao14.r171.public-code-only.v1",
+  "sha256": {
+    ".github/workflows/ao14-release-signature.yml": "2e247d2ea95c6c58604d33fea1ef410e63ebe08f103f2e7bd2c8b60cc85b1f25",
+    "README.md": "26d1097613152eae6ceb177c133637c9c019c1e4d4a75d1360c7141b9ae252cc",
+    "src/release_sign.js": "3a71ebfe9436cb7b3be4d533e03af358a7e8d77dd7131a1e12b36bc7207cac48",
+    "src/release_verify.js": "83c654d70cdfbb43f4751e506de846de932f9ac48227e9f3a1d9d6f9b54fed50",
+    "tests/test_release.js": "3a1794ab82ceccab15e225b2434fba23241a25b867777e8647243810d77f0869"
+  }
+}
