@@ -1,0 +1,42 @@
+name: AO14 R186 synthetic-only CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ao14-r186-offline-ci.yml'
+      - 'src/r180_release_offline.js'
+      - 'tests/test_r180_release_offline.js'
+      - 'tests/fixtures/r180_synthetic_approval.json'
+      - 'docs/R186_SECURITY_CONTRACT.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ao14-r186-offline-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-tests:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout PR safely without retained credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify runtime and syntax
+        run: |
+          set -euo pipefail
+          node --version
+          node --check src/r180_release_offline.js
+          node --check tests/test_r180_release_offline.js
+      - name: Run synthetic-only R186 tests
+        run: |
+          set -euo pipefail
+          node --test tests/test_r180_release_offline.js
