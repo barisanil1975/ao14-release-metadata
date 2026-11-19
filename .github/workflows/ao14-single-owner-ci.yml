@@ -1,0 +1,74 @@
+name: AO14 Single-Owner PUBLIC Metadata Validation
+on:
+  push:
+    branches:
+      - 'ao14-release-*'
+permissions:
+  contents: read
+jobs:
+  policy:
+    name: ao14-single-owner-policy-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Validate exact SHA metadata at actual GitHub commit
+        shell: bash
+        env:
+          AO14_REPO: barisanil1975/ao14-release-metadata
+          AO14_SOURCE_BUNDLE_SHA256: 6246b7ee81a3b35f032fb1b277fd7243478e05697382b62a2e5c9b1cdf10b0bc
+          AO14_INSTALLER_SHA256: b6c4a8500fdacac573f27fa13a90cf5bef1f82ef30f01b43e58d0a7c28f76d3b
+          AO14_GOVERNANCE_SHA256: 5be9dd4bef5aecbf15b4595e3b29191c0083a674062f119f5a1d94e12788b572
+        run: |
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import re
+          import urllib.request
+
+          repo = os.environ['AO14_REPO']
+          actual_head = os.environ['GITHUB_SHA']
+          assert os.environ['GITHUB_REPOSITORY'] == repo
+          assert os.environ['GITHUB_REF'].startswith('refs/heads/ao14-release-')
+          assert re.fullmatch(r'[a-f0-9]{40}', actual_head)
+
+          def exact_pairs(items):
+              result = {}
+              for k, v in items:
+                  if k in result:
+                      raise ValueError('duplicate JSON key')
+                  result[k] = v
+              return result
+
+          def github_bytes(path):
+              url = 'https://api.github.com/repos/' + repo + '/contents/' + path + '?ref=' + actual_head
+              request = urllib.request.Request(url, headers={
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'User-Agent': 'AO14-Source-Pin-Check/1'
+              })
+              with urllib.request.urlopen(request, timeout=10) as response:
+                  assert response.status == 200
+                  item = json.load(response)
+              assert item['encoding'] == 'base64'
+              raw = base64.b64decode(item['content'].replace('\n', ''), validate=True)
+              assert len(raw) < 32768
+              return raw
+
+          binding = json.loads(github_bytes('docs/AO14_SINGLE_OWNER_RELEASE_BINDING.json'),
+                               object_pairs_hook=exact_pairs)
+          assert set(binding) == {
+              'schema', 'candidate_sha256', 'source_bundle_sha256',
+              'policy_sha256', 'workflow_sha256', 'production_allowed'
+          }
+          assert binding['schema'] == 'aios.ao14.single-owner.public-metadata-binding.v2'
+          assert binding['candidate_sha256'] == os.environ['AO14_INSTALLER_SHA256']
+          assert binding['source_bundle_sha256'] == os.environ['AO14_SOURCE_BUNDLE_SHA256']
+          assert binding['policy_sha256'] == os.environ['AO14_GOVERNANCE_SHA256']
+          assert binding['production_allowed'] is False
+          workflow = github_bytes('.github/workflows/ao14-single-owner-ci.yml')
+          assert hashlib.sha256(workflow).hexdigest() == binding['workflow_sha256']
+          print('AO14 PUBLIC_METADATA_CI_PASS; actual GitHub head:', actual_head)
+          print('NOT a signer, human review, native grant, root release or recovery proof')
+          PY
