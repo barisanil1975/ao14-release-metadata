@@ -15,7 +15,7 @@ jobs:
         shell: bash
         env:
           AO14_REPO: barisanil1975/ao14-release-metadata
-          AO14_SOURCE_BUNDLE_SHA256: 8cfea24cad93e6cf0a1ecf058197a58c03f98fda3a24ee564d232aeb9783fee2
+          AO14_SOURCE_BUNDLE_SHA256: 6246b7ee81a3b35f032fb1b277fd7243478e05697382b62a2e5c9b1cdf10b0bc
           AO14_INSTALLER_SHA256: b6c4a8500fdacac573f27fa13a90cf5bef1f82ef30f01b43e58d0a7c28f76d3b
           AO14_GOVERNANCE_SHA256: 5be9dd4bef5aecbf15b4595e3b29191c0083a674062f119f5a1d94e12788b572
         run: |

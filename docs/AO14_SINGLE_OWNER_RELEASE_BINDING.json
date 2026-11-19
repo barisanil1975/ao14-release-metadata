@@ -3,6 +3,6 @@
   "policy_sha256": "5be9dd4bef5aecbf15b4595e3b29191c0083a674062f119f5a1d94e12788b572",
   "production_allowed": false,
   "schema": "aios.ao14.single-owner.public-metadata-binding.v2",
-  "source_bundle_sha256": "8cfea24cad93e6cf0a1ecf058197a58c03f98fda3a24ee564d232aeb9783fee2",
-  "workflow_sha256": "792a3687b39432f39bf389abb15558f8cf8c9571d6ded5888c34f6cff16b9cc8"
+  "source_bundle_sha256": "6246b7ee81a3b35f032fb1b277fd7243478e05697382b62a2e5c9b1cdf10b0bc",
+  "workflow_sha256": "2f416b0ccc9cd141652ca08593c2595782261cc0677a46cd767493d12b6ac181"
 }
