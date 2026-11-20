@@ -1,0 +1,40 @@
+name: AO14 R192 Docker verifier synthetic CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ao14-r192-synthetic-ci.yml'
+      - 'src/ao14_docker_verify_offline.js'
+      - 'tests/test_ao14_docker_verify_offline.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ao14-r192-synthetic-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-only:
+    if: ${{ github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR head without retained credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Validate source and tests
+        run: |
+          set -euo pipefail
+          node --version
+          node --check src/ao14_docker_verify_offline.js
+          node --check tests/test_ao14_docker_verify_offline.js
+      - name: Run offline-only 29 synthetic tests
+        run: |
+          set -euo pipefail
+          node --test tests/test_ao14_docker_verify_offline.js
